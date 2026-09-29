@@ -11,27 +11,38 @@ import ReactFlow, {
   Position,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import type { ContractNode, ChainId } from "@/types";
+import type { ContractNode, ChainId, CenterContract } from "@/types";
 import { shortenAddress } from "@/lib/chains";
 
 interface DepsGraphProps {
   centerAddress: string;
+  center?: CenterContract;
   dependsOn: ContractNode[];
   dependsOnIt: ContractNode[];
   chainId: ChainId;
 }
 
+function nodeTitle(n: ContractNode): string {
+  const base = n.label || n.name;
+  if (base) return base.slice(0, 18);
+  return shortenAddress(n.address, 4);
+}
+
 function buildGraph(
   center: string,
+  centerMeta: CenterContract | undefined,
   outbound: ContractNode[],
   inbound: ContractNode[]
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
 
+  const centerLabel =
+    centerMeta?.label || centerMeta?.name || shortenAddress(center, 5);
+
   nodes.push({
     id: center,
-    data: { label: shortenAddress(center, 5) },
+    data: { label: centerLabel },
     position: { x: 320, y: 220 },
     style: {
       background: "#18181b",
@@ -54,11 +65,10 @@ function buildGraph(
 
   outbound.slice(0, maxOut).forEach((n, i) => {
     const id = `out-${n.address}`;
-    const y = 40 + i * 55;
     nodes.push({
       id,
-      data: { label: n.name ? n.name.slice(0, 18) : shortenAddress(n.address, 4) },
-      position: { x: 560, y },
+      data: { label: `${nodeTitle(n)}\n${n.callCount}×` },
+      position: { x: 560, y: 40 + i * 55 },
       style: {
         background: "var(--card, #fff)",
         color: "var(--foreground, #18181b)",
@@ -68,6 +78,8 @@ function buildGraph(
         fontSize: 11,
         fontFamily: "ui-monospace, monospace",
         width: 140,
+        whiteSpace: "pre-line",
+        textAlign: "center",
       },
       sourcePosition: Position.Left,
       targetPosition: Position.Left,
@@ -78,8 +90,13 @@ function buildGraph(
       target: id,
       type: "smoothstep",
       style: { stroke: "#a1a1aa", strokeWidth: 1.5 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: "#a1a1aa", width: 16, height: 16 },
-      label: `${n.txCount}×`,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: "#a1a1aa",
+        width: 16,
+        height: 16,
+      },
+      label: `${n.callCount}×`,
       labelStyle: { fontSize: 10, fill: "#71717a" },
       labelBgStyle: { fill: "transparent" },
     });
@@ -87,11 +104,10 @@ function buildGraph(
 
   inbound.slice(0, maxIn).forEach((n, i) => {
     const id = `in-${n.address}`;
-    const y = 40 + i * 55;
     nodes.push({
       id,
-      data: { label: n.name ? n.name.slice(0, 18) : shortenAddress(n.address, 4) },
-      position: { x: 40, y },
+      data: { label: `${nodeTitle(n)}\n${n.callCount}×` },
+      position: { x: 40, y: 40 + i * 55 },
       style: {
         background: "var(--card, #fff)",
         color: "var(--foreground, #18181b)",
@@ -101,6 +117,8 @@ function buildGraph(
         fontSize: 11,
         fontFamily: "ui-monospace, monospace",
         width: 140,
+        whiteSpace: "pre-line",
+        textAlign: "center",
       },
       sourcePosition: Position.Right,
       targetPosition: Position.Right,
@@ -111,8 +129,13 @@ function buildGraph(
       target: center,
       type: "smoothstep",
       style: { stroke: "#a1a1aa", strokeWidth: 1.5 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: "#a1a1aa", width: 16, height: 16 },
-      label: `${n.txCount}×`,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: "#a1a1aa",
+        width: 16,
+        height: 16,
+      },
+      label: `${n.callCount}×`,
       labelStyle: { fontSize: 10, fill: "#71717a" },
       labelBgStyle: { fill: "transparent" },
     });
@@ -121,15 +144,29 @@ function buildGraph(
   return { nodes, edges };
 }
 
-export function DepsGraph({ centerAddress, dependsOn, dependsOnIt }: DepsGraphProps) {
+export function DepsGraph({
+  centerAddress,
+  center,
+  dependsOn,
+  dependsOnIt,
+}: DepsGraphProps) {
   const { nodes, edges } = useMemo(
-    () => buildGraph(centerAddress.toLowerCase(), dependsOn, dependsOnIt),
-    [centerAddress, dependsOn, dependsOnIt]
+    () =>
+      buildGraph(
+        centerAddress.toLowerCase(),
+        center,
+        dependsOn,
+        dependsOnIt
+      ),
+    [centerAddress, center, dependsOn, dependsOnIt]
   );
 
-  const onInit = useCallback((instance: { fitView: (opts?: object) => void }) => {
-    instance.fitView({ padding: 0.2 });
-  }, []);
+  const onInit = useCallback(
+    (instance: { fitView: (opts?: object) => void }) => {
+      instance.fitView({ padding: 0.2 });
+    },
+    []
+  );
 
   if (dependsOn.length === 0 && dependsOnIt.length === 0) {
     return (
@@ -156,7 +193,9 @@ export function DepsGraph({ centerAddress, dependsOn, dependsOnIt }: DepsGraphPr
         <Background color="#a1a1aa" gap={20} size={1} />
         <Controls showInteractive={false} />
         <MiniMap
-          nodeColor={(n) => (n.id === centerAddress.toLowerCase() ? "#18181b" : "#d4d4d8")}
+          nodeColor={(n) =>
+            n.id === centerAddress.toLowerCase() ? "#18181b" : "#d4d4d8"
+          }
           maskColor="rgba(9,9,11,0.5)"
           style={{ borderRadius: 8 }}
         />

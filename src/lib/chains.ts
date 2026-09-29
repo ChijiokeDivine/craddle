@@ -43,7 +43,7 @@ export const CHAINS: Record<ChainId, ChainConfig> = {
     explorer: "https://bsc.blockscout.com",
     nativeCurrency: "BNB",
   },
-    "5042": {
+  "5042": {
     id: "5042",
     name: "Arc",
     shortName: "ARC",
@@ -82,4 +82,19 @@ export function isValidAddress(address: string): boolean {
 export function shortenAddress(address: string, chars = 4): string {
   if (!address || address.length < 10) return address;
   return `${address.slice(0, chars + 2)}…${address.slice(-chars)}`;
+}
+
+export function formatWei(wei: string, decimals = 18): string {
+  try {
+    const n = BigInt(wei || "0");
+    if (n === 0n) return "0";
+    const base = 10n ** BigInt(decimals);
+    const whole = n / base;
+    const frac = n % base;
+    if (frac === 0n) return whole.toString();
+    const fracStr = frac.toString().padStart(decimals, "0").replace(/0+$/, "").slice(0, 6);
+    return `${whole}.${fracStr}`;
+  } catch {
+    return "0";
+  }
 }

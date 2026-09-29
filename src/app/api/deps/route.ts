@@ -2,13 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { getContractDeps, getAddressInfo } from "@/lib/blockscout";
 import { isValidAddress, CHAINS } from "@/lib/chains";
 import { cacheGet, cacheSet, depsCacheKey } from "@/lib/redis";
-import type { ChainId, DepsResponse, ApiError } from "@/types";
+import type { ChainId, DepsResponse, ApiError, CenterContract } from "@/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const SUPPORTED: ChainId[] = ["1", "8453", "42161", "10", "137", "56", "5042", "4663", "5042002", "11155111"];
-const CACHE_TTL = 60 * 5; // 5 minutes
+const SUPPORTED: ChainId[] = [
+  "1",
+  "8453",
+  "42161",
+  "10",
+  "137",
+  "56",
+  "5042",
+  "4663",
+  "5042002",
+  "11155111",
+];
+const CACHE_TTL = 60 * 5;
 
 export async function GET(req: NextRequest) {
   try {
@@ -44,9 +55,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const cacheKey = depsCacheKey(address, chainId);
+    const cacheKey = depsCacheKey(address, chainId) + ":v2";
 
-    // Try cache first
     const cached = await cacheGet<DepsResponse>(cacheKey);
     if (cached) {
       return NextResponse.json(cached, {
@@ -57,14 +67,25 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Optional: verify it's a contract
-    const info = await getAddressInfo(address, chainId);
-    if (info && !info.isContract) {
+    const centerInfo = await getAddressInfo(address, chainId);
+    if (centerInfo && !centerInfo.isContract) {
       return NextResponse.json<ApiError>(
         { error: "Address is not a smart contract" },
         { status: 400 }
       );
     }
+
+    const center: CenterContract = centerInfo ?? {
+      address: address.toLowerCase(),
+      name: null,
+      label: null,
+      tags: [],
+      isContract: true,
+      isVerified: false,
+      isProxy: false,
+      proxyType: null,
+      implementations: [],
+    };
 
     const { dependsOn, dependsOnIt, scanned } = await getContractDeps(
       address,
@@ -75,6 +96,7 @@ export async function GET(req: NextRequest) {
     const body: DepsResponse = {
       address: address.toLowerCase(),
       chainId,
+      center,
       dependsOn,
       dependsOnIt,
       stats: {
@@ -84,7 +106,6 @@ export async function GET(req: NextRequest) {
       },
     };
 
-    // Store in Redis (non-blocking for response)
     await cacheSet(cacheKey, body, CACHE_TTL);
 
     return NextResponse.json(body, {
