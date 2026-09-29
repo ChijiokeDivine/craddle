@@ -27,7 +27,10 @@ export function HomeClient() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DepsResponse | null>(null);
-  const [view, setView] = useState<ViewMode>("list");
+  const paramView = searchParams.get("view");
+  const [view, setView] = useState<ViewMode>(
+    paramView === "list" || paramView === "graph" ? paramView : "list"
+  );
   const [linkCopied, setLinkCopied] = useState(false);
   const bootstrapped = useRef(false);
 
@@ -79,10 +82,10 @@ export function HomeClient() {
     const chain = (searchParams.get("chainId") || "1") as ChainId;
     const v = (searchParams.get("view") || "list") as ViewMode;
 
-    if (v === "list" || v === "graph") setView(v);
-
     if (addr && isValidAddress(addr) && CHAINS[chain]) {
-      handleSearch(addr, chain, v === "list" || v === "graph" ? v : "list");
+      queueMicrotask(() =>
+        handleSearch(addr, chain, v === "list" || v === "graph" ? v : "list")
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

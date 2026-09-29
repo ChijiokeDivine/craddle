@@ -21,9 +21,11 @@ export function ThemeToggle() {
 
   useEffect(() => {
     const t = getInitialTheme();
-    setTheme(t);
-    document.documentElement.classList.toggle("dark", t === "dark");
-    setMounted(true);
+    queueMicrotask(() => {
+      setTheme(t);
+      document.documentElement.classList.toggle("dark", t === "dark");
+      setMounted(true);
+    });
   }, []);
 
   const toggle = () => {

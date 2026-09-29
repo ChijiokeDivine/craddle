@@ -87,11 +87,11 @@ export function shortenAddress(address: string, chars = 4): string {
 export function formatWei(wei: string, decimals = 18): string {
   try {
     const n = BigInt(wei || "0");
-    if (n === 0n) return "0";
-    const base = 10n ** BigInt(decimals);
+    if (n === BigInt(0)) return "0";
+    const base = BigInt(10) ** BigInt(decimals);
     const whole = n / base;
     const frac = n % base;
-    if (frac === 0n) return whole.toString();
+    if (frac === BigInt(0)) return whole.toString();
     const fracStr = frac.toString().padStart(decimals, "0").replace(/0+$/, "").slice(0, 6);
     return `${whole}.${fracStr}`;
   } catch {
