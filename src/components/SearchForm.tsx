@@ -68,7 +68,7 @@ export function SearchForm({
             value={chainId}
             onChange={(e) => setChainId(e.target.value as ChainId)}
             disabled={loading}
-            className="h-12 w-full cursor-pointer appearance-none bg-transparent pl-3.5 pr-9 text-sm font-medium focus:outline-none disabled:opacity-60 sm:w-auto"
+            className="h-12 w-full cursor-pointer appearance-none bg-black pl-3.5 pr-9 text-sm font-medium focus:outline-none disabled:opacity-60 sm:w-auto text-white"
             aria-label="Select chain"
           >
             {CHAIN_LIST.map((c) => (
