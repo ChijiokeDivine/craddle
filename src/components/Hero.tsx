@@ -51,11 +51,10 @@ export function Hero({
 
   return (
     <section className="on-brand grid-bg overflow-hidden bg-brand text-brand-ink">
-      <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-14 pt-12 sm:pt-16 lg:grid-cols-[1.1fr_0.9fr] lg:pb-20">
+      <div className="mx-auto max-w-4xl items-center gap-10 px-4 pb-14 pt-12 sm:pt-16  lg:pb-20">
         <div>
-          <h1 className="text-5xl font-bold leading-[0.95] tracking-tight sm:text-6xl lg:text-7xl">
+          <h1 className="text-4xl font-bold leading-[0.95] tracking-tight sm:text-5xl lg:text-6xl">
             What Your
-            <br />
             Contract
             <br />
             Depends On
@@ -112,9 +111,6 @@ export function Hero({
           )}
         </div>
 
-        <div className="hidden justify-self-end lg:block">
-          <Constellation />
-        </div>
       </div>
     </section>
   );

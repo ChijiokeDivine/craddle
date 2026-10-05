@@ -94,13 +94,13 @@ export function SearchForm({
           autoComplete="off"
           aria-label="Contract address"
           aria-invalid={invalid}
-          className="h-12 min-w-0 flex-1 bg-transparent px-3.5 font-mono text-sm placeholder:text-deep/45 focus:outline-none disabled:opacity-60"
+          className="h-12 min-w-0 flex-1 bg-black px-3.5 font-mono text-sm placeholder:text-deep/45 focus:outline-none disabled:opacity-60 text-white"
         />
 
         <button
           type="submit"
           disabled={loading || !trimmed || invalid}
-          className="inline-flex h-12 items-center justify-center gap-2 bg-deep px-5 text-sm font-semibold text-[#f2f3ff] transition-colors hover:bg-[#1a1a6e] disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-12 items-center justify-center gap-2 px-5 text-sm font-semibold text-[#f2f3ff] bg-[#1a1a6e] disabled:cursor-not-allowed disabled:opacity-40"
         >
           {loading ? (
             <Loader2 size={15} className="animate-spin" />
