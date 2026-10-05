@@ -1,25 +1,31 @@
+// components/HomeClient.tsx
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  LayoutGrid,
-  List,
-  AlertCircle,
-  GitBranch,
-  Layers,
-  Link2,
-  Check,
-} from "lucide-react";
-import { SearchForm } from "@/components/SearchForm";
+import { LayoutGrid, List, AlertCircle, Link2, Check, RotateCw } from "lucide-react";
+import { Header } from "@/components/Header";
+import { Hero } from "@/components/Hero";
+import { Features } from "@/components/Features";
+import { Footer } from "@/components/Footer";
+import { StatsStrip } from "@/components/StatsStrip";
+import { Insights } from "@/components/Insights";
+import { ApiSnippet } from "@/components/ApiSnippet";
+import { ExploreTrail, type TrailEntry } from "@/components/ExploreTrail";
 import { ContractList } from "@/components/ContractList";
 import { DepsGraph } from "@/components/DepsGraph";
 import { AddressLink } from "@/components/AddressLink";
 import { Tooltip } from "@/components/Tooltip";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { Pill } from "@/components/Pill";
 import { ExportMenu } from "@/components/ExportMenu";
 import type { ChainId, DepsResponse, ViewMode } from "@/types";
-import { CHAINS, isValidAddress } from "@/lib/chains";
+import { CHAINS, isValidAddress, shortenAddress } from "@/lib/chains";
+import { clearRecent, loadRecent, saveRecent, type RecentSearch } from "@/lib/history";
+
+type TrailMode = "reset" | "push" | "keep";
+
+const outlineBtn =
+  "inline-flex h-9 items-center gap-1.5 border border-line bg-card px-3 text-sm transition-colors hover:border-accent hover:text-accent";
 
 export function HomeClient() {
   const router = useRouter();
@@ -27,12 +33,18 @@ export function HomeClient() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DepsResponse | null>(null);
+  const [cacheHit, setCacheHit] = useState(false);
   const paramView = searchParams.get("view");
   const [view, setView] = useState<ViewMode>(
     paramView === "list" || paramView === "graph" ? paramView : "list"
   );
   const [linkCopied, setLinkCopied] = useState(false);
+  const [recent, setRecent] = useState<RecentSearch[]>([]);
+  const [trail, setTrail] = useState<TrailEntry[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
   const bootstrapped = useRef(false);
+  const reqId = useRef(0);
+  const lastQuery = useRef<{ address: string; chainId: ChainId } | null>(null);
 
   const syncUrl = useCallback(
     (address: string, chainId: ChainId, viewMode: ViewMode) => {
@@ -46,29 +58,54 @@ export function HomeClient() {
   );
 
   const handleSearch = useCallback(
-    async (address: string, chainId: ChainId, viewMode?: ViewMode) => {
+    async (
+      address: string,
+      chainId: ChainId,
+      viewMode?: ViewMode,
+      trailMode: TrailMode = "reset"
+    ) => {
+      const id = ++reqId.current;
+      const v = viewMode ?? view;
+      const addr = address.toLowerCase();
+      lastQuery.current = { address, chainId };
+
       setLoading(true);
       setError(null);
       setData(null);
-      const v = viewMode ?? view;
+      setCacheHit(false);
       syncUrl(address, chainId, v);
+
+      setTrail((prev) => {
+        if (trailMode === "keep") return prev;
+        const entry: TrailEntry = { address: addr, chainId };
+        if (trailMode === "reset") return [entry];
+        const last = prev[prev.length - 1];
+        if (last && last.address === addr && last.chainId === chainId) return prev;
+        return [...prev, entry].slice(-8);
+      });
 
       try {
         const res = await fetch(
           `/api/deps?address=${encodeURIComponent(address)}&chainId=${chainId}`
         );
         const json = await res.json();
+        if (id !== reqId.current) return;
 
         if (!res.ok) {
           setError(json.error || "Request failed");
           return;
         }
 
-        setData(json as DepsResponse);
+        const body = json as DepsResponse;
+        const name = body.center.label || body.center.name;
+        setData(body);
+        setCacheHit(res.headers.get("X-Cache") === "HIT");
+        if (name) setNames((prev) => ({ ...prev, [`${chainId}:${addr}`]: name }));
+        setRecent(saveRecent({ address: addr, chainId, name }));
       } catch {
-        setError("Network error. Please try again.");
+        if (id === reqId.current) setError("Network error. Please try again.");
       } finally {
-        setLoading(false);
+        if (id === reqId.current) setLoading(false);
       }
     },
     [view, syncUrl]
@@ -77,6 +114,8 @@ export function HomeClient() {
   useEffect(() => {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
+
+    queueMicrotask(() => setRecent(loadRecent()));
 
     const addr = searchParams.get("address");
     const chain = (searchParams.get("chainId") || "1") as ChainId;
@@ -89,6 +128,13 @@ export function HomeClient() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const name = data?.center.label || data?.center.name;
+    document.title = data
+      ? `${name ?? shortenAddress(data.address, 4)} on craddle`
+      : "craddle — Contract Dependency Explorer";
+  }, [data]);
 
   const changeView = (v: ViewMode) => {
     setView(v);
@@ -108,170 +154,206 @@ export function HomeClient() {
     setTimeout(() => setLinkCopied(false), 1500);
   };
 
+  const explore = useCallback(
+    (address: string) => {
+      if (!data) return;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      handleSearch(address, data.chainId, view, "push");
+    },
+    [data, view, handleSearch]
+  );
+
+  const jumpTo = useCallback(
+    (index: number) => {
+      const entry = trail[index];
+      if (!entry) return;
+      setTrail(trail.slice(0, index + 1));
+      handleSearch(entry.address, entry.chainId as ChainId, view, "keep");
+    },
+    [trail, view, handleSearch]
+  );
+
+  const handleClearRecent = () => {
+    clearRecent();
+    setRecent([]);
+  };
+
+  const trailWithLabels: TrailEntry[] = trail.map((t) => ({
+    ...t,
+    label: names[`${t.chainId}:${t.address}`],
+  }));
+
+  const centerName = data ? data.center.label || data.center.name : null;
+  const compact = loading || !!data || !!error;
+
   return (
-    <div className="flex flex-col min-h-full">
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <GitBranch
-              size={18}
-              className="text-zinc-800 dark:text-zinc-100"
-              strokeWidth={2}
-            />
-            <span className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-              craddle
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400 hidden sm:block">
-              Contract dependency explorer
-            </span>
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
+    <div className="flex min-h-full flex-col">
+      <Header />
+      <Hero
+        compact={compact}
+        loading={loading}
+        initialAddress={searchParams.get("address") || ""}
+        initialChain={(searchParams.get("chainId") as ChainId) || "1"}
+        recent={recent}
+        onSubmit={(a, c) => handleSearch(a, c)}
+        onClearRecent={handleClearRecent}
+      />
 
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8 sm:py-12">
-        <section className="mb-8">
-          <SearchForm
-            onSubmit={(a, c) => handleSearch(a, c)}
-            loading={loading}
-            initialAddress={searchParams.get("address") || ""}
-            initialChain={(searchParams.get("chainId") as ChainId) || "1"}
-          />
-        </section>
-
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:py-10">
         {loading && (
-          <div className="space-y-4 animate-pulse">
-            <div className="h-5 w-48 bg-zinc-100 dark:bg-zinc-800 rounded-[8px]" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="h-64 bg-zinc-100 dark:bg-zinc-800 rounded-[10px]" />
-              <div className="h-64 bg-zinc-100 dark:bg-zinc-800 rounded-[10px]" />
+          <div className="space-y-6" aria-live="polite" aria-busy="true">
+            <p className="font-mono text-sm text-muted">
+              {"// scanning internal transactions"}
+              <span className="cursor-blink">_</span>
+            </p>
+            <div className="grid animate-pulse grid-cols-2 gap-px border border-line bg-line sm:grid-cols-5">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-20 bg-card" />
+              ))}
+            </div>
+            <div className="grid animate-pulse grid-cols-1 gap-6 md:grid-cols-2">
+              <div className="h-64 border border-line bg-subtle" />
+              <div className="h-64 border border-line bg-subtle" />
             </div>
           </div>
         )}
 
         {error && !loading && (
-          <div className="flex items-start gap-3 rounded-[10px] border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-800 dark:text-red-300">
-            <AlertCircle size={16} className="mt-0.5 shrink-0" />
-            <span>{error}</span>
+          <div role="alert" className="border border-line border-l-4 border-l-bad bg-card px-5 py-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle size={18} className="mt-0.5 shrink-0 text-bad" />
+              <div className="min-w-0">
+                <p className="font-semibold">Couldn&apos;t load this contract</p>
+                <p className="mt-1 break-words text-sm text-muted">{error}</p>
+                <p className="mt-2 text-sm">
+                  Check the address and the selected chain, then try again.
+                </p>
+                {lastQuery.current && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      lastQuery.current &&
+                      handleSearch(lastQuery.current.address, lastQuery.current.chainId)
+                    }
+                    className={`${outlineBtn} mt-3`}
+                  >
+                    <RotateCw size={14} />
+                    Try again
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
         {data && !loading && (
           <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm min-w-0">
-                <AddressLink
-                  address={data.address}
-                  chainId={data.chainId}
-                  name={data.center.label || data.center.name}
-                  showFull={!data.center.label && !data.center.name}
-                />
-                {data.center.isProxy && (
-                  <Tooltip
-                    content={
-                      data.center.proxyType
-                        ? `Proxy: ${data.center.proxyType}`
-                        : "Proxy contract"
-                    }
-                  >
-                    <span className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
-                      <Layers size={12} />
-                      proxy
+            <ExploreTrail trail={trailWithLabels} onJump={jumpTo} />
+
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h2 className="break-words text-3xl font-bold tracking-tight sm:text-4xl">
+                  {centerName || "Unnamed contract"}
+                </h2>
+                <div className="mt-2">
+                  <AddressLink address={data.address} chainId={data.chainId} showFull />
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Pill colons tone="accent">
+                    {(CHAINS[data.chainId]?.name ?? data.chainId).toLowerCase()}
+                  </Pill>
+                  {data.center.isProxy && (
+                    <Tooltip
+                      content={
+                        data.center.proxyType
+                          ? `Proxy: ${data.center.proxyType}`
+                          : "Proxy contract"
+                      }
+                    >
+                      <Pill colons tone="warn">
+                        proxy
+                      </Pill>
+                    </Tooltip>
+                  )}
+                  {data.center.isVerified && (
+                    <Pill colons tone="ok">
+                      verified
+                    </Pill>
+                  )}
+                  {cacheHit && (
+                    <Tooltip content="Served from cache, up to 5 minutes old">
+                      <Pill colons>cached</Pill>
+                    </Tooltip>
+                  )}
+                  {data.center.implementations[0] && (
+                    <span className="max-w-[220px] truncate font-mono text-xs text-muted">
+                      →{" "}
+                      {data.center.implementations[0].name ||
+                        data.center.implementations[0].address.slice(0, 10)}
                     </span>
-                  </Tooltip>
-                )}
-                {data.center.implementations[0] && (
-                  <span className="text-xs text-zinc-400 font-mono truncate max-w-[160px]">
-                    →{" "}
-                    {data.center.implementations[0].name ||
-                      data.center.implementations[0].address.slice(0, 10)}
-                  </span>
-                )}
-                <span className="text-zinc-300 dark:text-zinc-600">·</span>
-                <span className="text-zinc-500 dark:text-zinc-400">
-                  {CHAINS[data.chainId]?.name}
-                </span>
-                <span className="text-zinc-300 dark:text-zinc-600">·</span>
-                <Tooltip content="Internal transactions scanned">
-                  <span className="text-zinc-500 dark:text-zinc-400 tabular-nums cursor-default">
-                    {data.stats.scanned} scanned
-                  </span>
-                </Tooltip>
+                  )}
+                  {data.center.tags.map((t) => (
+                    <Pill key={t}>{t}</Pill>
+                  ))}
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <ExportMenu data={data} />
-                <Tooltip content={linkCopied ? "Copied" : "Copy share link"}>
-                  <button
-                    type="button"
-                    onClick={copyShareLink}
-                    className="h-8 w-8 flex items-center justify-center rounded-[8px] border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
-                    aria-label="Copy share link"
-                  >
-                    {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
-                  </button>
-                </Tooltip>
-                <div className="inline-flex rounded-[10px] border border-zinc-200 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900">
-                  <Tooltip content="List view">
+                <button type="button" onClick={copyShareLink} className={outlineBtn}>
+                  {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
+                  {linkCopied ? "Copied" : "Copy link"}
+                </button>
+                <div
+                  className="inline-flex border border-line bg-card p-0.5"
+                  role="group"
+                  aria-label="View mode"
+                >
+                  {(
+                    [
+                      { key: "list", label: "List", Icon: List },
+                      { key: "graph", label: "Graph", Icon: LayoutGrid },
+                    ] as const
+                  ).map(({ key, label, Icon }) => (
                     <button
+                      key={key}
                       type="button"
-                      onClick={() => changeView("list")}
-                      className={`h-8 w-8 flex items-center justify-center rounded-[8px] transition-colors ${
-                        view === "list"
-                          ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
-                          : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                      onClick={() => changeView(key)}
+                      aria-pressed={view === key}
+                      className={`inline-flex h-8 items-center gap-1.5 px-3 text-sm transition-colors ${
+                        view === key
+                          ? "bg-brand text-brand-ink"
+                          : "text-muted hover:text-accent"
                       }`}
-                      aria-label="List view"
                     >
-                      <List size={15} />
+                      <Icon size={14} />
+                      {label}
                     </button>
-                  </Tooltip>
-                  <Tooltip content="Graph view">
-                    <button
-                      type="button"
-                      onClick={() => changeView("graph")}
-                      className={`h-8 w-8 flex items-center justify-center rounded-[8px] transition-colors ${
-                        view === "graph"
-                          ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
-                          : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
-                      }`}
-                      aria-label="Graph view"
-                    >
-                      <LayoutGrid size={15} />
-                    </button>
-                  </Tooltip>
+                  ))}
                 </div>
               </div>
             </div>
 
-            {data.center.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {data.center.tags.map((t) => (
-                  <span
-                    key={t}
-                    className="text-[11px] px-2 py-0.5 rounded-[6px] bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            )}
+            <StatsStrip data={data} />
+            <Insights data={data} />
 
             {view === "list" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
                 <ContractList
                   title="Depends on"
+                  hint="Contracts this one calls"
                   items={data.dependsOn}
                   chainId={data.chainId}
                   emptyLabel="No outbound calls found"
+                  onExplore={explore}
                 />
                 <ContractList
-                  title="Depends on it"
+                  title="Used by"
+                  hint="Contracts that call this one"
                   items={data.dependsOnIt}
                   chainId={data.chainId}
                   emptyLabel="No inbound calls found"
+                  onExplore={explore}
                 />
               </div>
             ) : (
@@ -281,24 +363,18 @@ export function HomeClient() {
                 dependsOn={data.dependsOn}
                 dependsOnIt={data.dependsOnIt}
                 chainId={data.chainId}
+                onExplore={explore}
               />
             )}
+
+            <ApiSnippet address={data.address} chainId={data.chainId} />
           </div>
         )}
 
-        {!data && !loading && !error && (
-          <div className="text-center py-16 text-sm text-zinc-400 dark:text-zinc-500">
-            Paste a contract address to explore its dependencies
-          </div>
-        )}
+        {!data && !loading && !error && <Features />}
       </main>
 
-      <footer className="border-t border-zinc-200 dark:border-zinc-800 py-4">
-        <div className="max-w-5xl mx-auto px-4 flex items-center justify-between text-xs text-zinc-400 dark:text-zinc-500">
-          <span>Powered by Blockscout</span>
-          <span>craddle</span>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+// components/AddressLink.tsx
 "use client";
 
 import { ExternalLink, Copy, Check } from "lucide-react";
@@ -29,12 +30,12 @@ export function AddressLink({ address, chainId, name, showFull }: AddressLinkPro
   };
 
   return (
-    <span className="inline-flex items-center gap-1.5 group">
+    <span className="group inline-flex min-w-0 items-center gap-1.5">
       <a
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="font-mono text-sm text-zinc-800 dark:text-zinc-200 hover:text-zinc-950 dark:hover:text-white underline-offset-2 hover:underline"
+        className="min-w-0 break-all font-mono text-sm text-foreground underline-offset-4 hover:text-accent hover:underline"
       >
         {label}
       </a>
@@ -42,7 +43,7 @@ export function AddressLink({ address, chainId, name, showFull }: AddressLinkPro
         <button
           type="button"
           onClick={copy}
-          className="p-0.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+          className="p-0.5 text-muted transition-colors hover:text-accent"
           aria-label="Copy address"
         >
           {copied ? <Check size={13} /> : <Copy size={13} />}
@@ -53,7 +54,7 @@ export function AddressLink({ address, chainId, name, showFull }: AddressLinkPro
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="p-0.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+          className="p-0.5 text-muted transition-colors hover:text-accent"
           aria-label="Open in explorer"
         >
           <ExternalLink size={13} />

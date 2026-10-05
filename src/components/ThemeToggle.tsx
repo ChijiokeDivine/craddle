@@ -1,3 +1,4 @@
+// components/ThemeToggle.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -15,7 +16,12 @@ function getInitialTheme(): Theme {
     : "light";
 }
 
-export function ThemeToggle() {
+interface ThemeToggleProps {
+  /** Use cream-on-blue styling when placed on the brand-coloured header */
+  onBrand?: boolean;
+}
+
+export function ThemeToggle({ onBrand = false }: ThemeToggleProps) {
   const [theme, setTheme] = useState<Theme>("light");
   const [mounted, setMounted] = useState(false);
 
@@ -36,18 +42,22 @@ export function ThemeToggle() {
   };
 
   if (!mounted) {
-    return <div className="h-8 w-8" />;
+    return <div className="h-9 w-9" />;
   }
 
   return (
-    <Tooltip content={theme === "dark" ? "Light mode" : "Dark mode"}>
+    <Tooltip content={theme === "dark" ? "Light mode" : "Dark mode"} side="bottom">
       <button
         type="button"
         onClick={toggle}
-        className="h-8 w-8 flex items-center justify-center rounded-[8px] text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        className={`flex h-9 w-9 items-center justify-center transition-colors ${
+          onBrand
+            ? "text-brand-ink hover:bg-white/15"
+            : "text-muted hover:bg-subtle hover:text-foreground"
+        }`}
         aria-label="Toggle theme"
       >
-        {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+        {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
       </button>
     </Tooltip>
   );

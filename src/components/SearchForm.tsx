@@ -1,10 +1,10 @@
+// components/SearchForm.tsx
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Search, Loader2, ChevronDown } from "lucide-react";
-import { CHAIN_LIST } from "@/lib/chains";
+import { CHAIN_LIST, isValidAddress } from "@/lib/chains";
 import type { ChainId } from "@/types";
-import { Tooltip } from "./Tooltip";
 
 interface SearchFormProps {
   onSubmit: (address: string, chainId: ChainId) => void;
@@ -21,23 +21,54 @@ export function SearchForm({
 }: SearchFormProps) {
   const [address, setAddress] = useState(initialAddress);
   const [chainId, setChainId] = useState<ChainId>(initialChain);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Keep the fields in step when the app navigates (explore, recent, trail).
+  useEffect(() => {
+    queueMicrotask(() => setAddress(initialAddress));
+  }, [initialAddress]);
+  useEffect(() => {
+    queueMicrotask(() => setChainId(initialChain));
+  }, [initialChain]);
+
+  // "/" focuses the address field from anywhere on the page.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const typing =
+        !!t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.isContentEditable);
+      if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const trimmed = address.trim();
+  const invalid = trimmed.length > 0 && !isValidAddress(trimmed);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    const trimmed = address.trim();
-    if (!trimmed || loading) return;
+    if (!trimmed || invalid || loading) return;
     onSubmit(trimmed, chainId);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="w-full">
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative shrink-0">
+    <form onSubmit={handleSubmit} className="w-full" noValidate>
+      <div className="flex flex-col border-2 border-deep bg-[#f2f3ff] text-deep shadow-[6px_6px_0_0_var(--deep)] sm:flex-row">
+        <div className="relative shrink-0 border-b-2 border-deep sm:border-b-0 sm:border-r-2">
           <select
             value={chainId}
             onChange={(e) => setChainId(e.target.value as ChainId)}
             disabled={loading}
-            className="appearance-none h-11 pl-3.5 pr-9 rounded-[10px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-600 focus:border-zinc-300 dark:focus:border-zinc-600 disabled:opacity-60 cursor-pointer"
+            className="h-12 w-full cursor-pointer appearance-none bg-transparent pl-3.5 pr-9 text-sm font-medium focus:outline-none disabled:opacity-60 sm:w-auto"
             aria-label="Select chain"
           >
             {CHAIN_LIST.map((c) => (
@@ -48,37 +79,43 @@ export function SearchForm({
           </select>
           <ChevronDown
             size={14}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
+            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 opacity-60"
           />
         </div>
 
-        <div className="relative flex-1">
-          <input
-            type="text"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="0x… contract address"
-            disabled={loading}
-            spellCheck={false}
-            autoComplete="off"
-            className="w-full h-11 pl-3.5 pr-11 rounded-[10px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm font-mono text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-600 focus:border-zinc-300 dark:focus:border-zinc-600 disabled:opacity-60"
-          />
-          <Tooltip content="Analyze dependencies">
-            <button
-              type="submit"
-              disabled={loading || !address.trim()}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-[8px] bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-300 disabled:opacity-40 transition-colors"
-              aria-label="Search"
-            >
-              {loading ? (
-                <Loader2 size={15} className="animate-spin" />
-              ) : (
-                <Search size={15} />
-              )}
-            </button>
-          </Tooltip>
-        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="0x… contract address"
+          disabled={loading}
+          spellCheck={false}
+          autoComplete="off"
+          aria-label="Contract address"
+          aria-invalid={invalid}
+          className="h-12 min-w-0 flex-1 bg-transparent px-3.5 font-mono text-sm placeholder:text-deep/45 focus:outline-none disabled:opacity-60"
+        />
+
+        <button
+          type="submit"
+          disabled={loading || !trimmed || invalid}
+          className="inline-flex h-12 items-center justify-center gap-2 bg-deep px-5 text-sm font-semibold text-[#f2f3ff] transition-colors hover:bg-[#1a1a6e] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {loading ? (
+            <Loader2 size={15} className="animate-spin" />
+          ) : (
+            <Search size={15} />
+          )}
+          {loading ? "Scanning" : "Analyze"}
+        </button>
       </div>
+
+      {invalid && (
+        <p role="alert" className="mt-3 font-mono text-xs text-brand-ink">
+          {"// expected 0x followed by 40 hex characters"}
+        </p>
+      )}
     </form>
   );
 }

@@ -1,3 +1,4 @@
+// components/Tooltip.tsx
 "use client";
 
 import { useState, useRef, useEffect, type ReactNode } from "react";
@@ -39,8 +40,8 @@ export function Tooltip({ content, children, side = "top" }: TooltipProps) {
       {open && (
         <span
           role="tooltip"
-          className={`absolute z-50 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-[8px] bg-zinc-900 dark:bg-zinc-100 px-2.5 py-1.5 text-xs text-zinc-100 dark:text-zinc-900 shadow-lg pointer-events-none ${
-            side === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5"
+          className={`pointer-events-none absolute left-1/2 z-50 -translate-x-1/2 whitespace-nowrap bg-deep px-2 py-1 font-mono text-[11px] text-brand-ink shadow-[3px_3px_0_0_var(--brand)] dark:bg-brand-ink dark:text-deep dark:shadow-[3px_3px_0_0_var(--accent)] ${
+            side === "top" ? "bottom-full mb-2" : "top-full mt-2"
           }`}
         >
           {content}

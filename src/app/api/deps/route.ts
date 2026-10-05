@@ -1,3 +1,4 @@
+// app/api/deps/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getContractDeps, getAddressInfo } from "@/lib/blockscout";
 import { isValidAddress, CHAINS } from "@/lib/chains";

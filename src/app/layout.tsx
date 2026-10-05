@@ -1,10 +1,19 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+// app/layout.tsx
+import type { Metadata, Viewport } from "next";
+import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
+// Hermes uses proprietary type. Space Grotesk (display/body) and
+// JetBrains Mono (addresses, labels) are the closest open substitutes.
+const space = Space_Grotesk({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-space",
+  display: "swap",
+});
+
+const jetbrains = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains",
   display: "swap",
 });
 
@@ -12,6 +21,19 @@ export const metadata: Metadata = {
   title: "craddle — Contract Dependency Explorer",
   description:
     "Paste a smart contract address to see what it depends on and what depends on it.",
+  openGraph: {
+    title: "craddle — Contract Dependency Explorer",
+    description:
+      "Paste a smart contract address to see what it depends on and what depends on it.",
+    type: "website",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0000f2",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -20,7 +42,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`${space.variable} ${jetbrains.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -28,7 +54,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col font-sans bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
+      <body className="min-h-full flex flex-col font-sans bg-background text-foreground">
         {children}
       </body>
     </html>
